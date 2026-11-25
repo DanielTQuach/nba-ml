@@ -82,9 +82,7 @@ def state_to_frame(state: dict, use_lineups: bool) -> pd.DataFrame:
 
 
 def default_checkpoint() -> Path:
-    phase2 = MODEL_DIR / "phase2.pt"
-    if phase2.exists():
-        return phase2
+    # Lineup features did not improve held-out likelihood, so the default is phase 1.
     return MODEL_DIR / "phase1.pt"
 
 

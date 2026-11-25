@@ -32,3 +32,5 @@ python -m nba_ml.predict --state examples/state.json --x 220
 ```
 
 `ingest` calls are resumable. A game whose play-by-play file is already cached is skipped.
+
+`predict` loads the phase 1 checkpoint. On the held-out half of 2025-26, adding on-court players did not beat that model. Pass `--checkpoint data/models/phase2.pt` to score the lineup model instead.
