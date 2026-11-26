@@ -21,6 +21,22 @@ def crps_from_pmf(pmf: np.ndarray, remaining: np.ndarray) -> float:
     return float(np.mean(np.sum((cdf - indicators) ** 2, axis=1)))
 
 
+def final_total_sides(final_pmf: np.ndarray, line: float) -> dict[str, float]:
+    """Split a final-total distribution into over, under, and push.
+
+    Final totals are whole numbers, so a half-point line has no push.
+    """
+    final_pmf = np.asarray(final_pmf, dtype=float).reshape(-1)
+    totals = np.arange(len(final_pmf))
+    over = float(final_pmf[totals > line].sum())
+    under = float(final_pmf[totals < line].sum())
+    if float(line).is_integer() and 0 <= int(line) < len(final_pmf):
+        push = float(final_pmf[int(line)])
+    else:
+        push = 0.0
+    return {"over": over, "under": under, "push": push}
+
+
 def probability_final_over(pmf: np.ndarray, current_total: np.ndarray, threshold: float) -> np.ndarray:
     """P(final total > threshold) from a remaining-points PMF."""
     current_total = np.asarray(current_total, dtype=float)

@@ -1,4 +1,4 @@
-"""Print P(final combined score = X) for one game state."""
+"""Print the chance a game finishes over or under a book total."""
 
 from __future__ import annotations
 
@@ -11,6 +11,7 @@ import numpy as np
 import pandas as pd
 
 from nba_ml.config import MODEL_DIR, PERIOD_SECONDS, REGULATION_PERIODS, REMAINING_PMF_MAX
+from nba_ml.eval.metrics import final_total_sides
 from nba_ml.eval.report import load_model, network_pmf
 from nba_ml.models.remaining import shift_to_final_total
 
@@ -86,23 +87,23 @@ def default_checkpoint() -> Path:
     return MODEL_DIR / "phase1.pt"
 
 
-def describe(state: dict, score: int, checkpoint: Path) -> dict[str, float]:
+def describe(state: dict, line: float, checkpoint: Path) -> dict[str, float]:
     model, payload = load_model(checkpoint)
     frame = state_to_frame(state, use_lineups=bool(payload["use_lineups"]))
     remaining = network_pmf(model, payload, frame)[0]
     current_total = int(round(float(frame.loc[0, "current_total"])))
     final = shift_to_final_total(remaining, current_total)
-    if score < 0 or score >= len(final):
-        probability = 0.0
-    else:
-        probability = float(final[score])
+    sides = final_total_sides(final, line)
     grid = np.arange(len(final))
     cdf = np.cumsum(final)
+
     def quantile(level: float) -> int:
         return int(grid[np.searchsorted(cdf, level, side="left")])
 
     return {
-        "probability": probability,
+        "over": sides["over"],
+        "under": sides["under"],
+        "push": sides["push"],
         "mean_final": float(np.dot(grid, final)),
         "p10": quantile(0.10),
         "p50": quantile(0.50),
@@ -112,15 +113,18 @@ def describe(state: dict, score: int, checkpoint: Path) -> dict[str, float]:
 
 
 def main(argv: list[str] | None = None) -> None:
-    parser = argparse.ArgumentParser(description="Probability that the combined final score equals X.")
+    parser = argparse.ArgumentParser(description="Chance the combined final score goes over or under a book total.")
     parser.add_argument("--state", type=Path, required=True)
-    parser.add_argument("--x", type=int, required=True, dest="score")
+    parser.add_argument("--x", type=float, required=True, dest="line")
     parser.add_argument("--checkpoint", type=Path, default=None)
     args = parser.parse_args(argv)
     checkpoint = args.checkpoint or default_checkpoint()
     state = json.loads(args.state.read_text(encoding="utf-8"))
-    summary = describe(state, args.score, checkpoint)
-    print(f"P(final total = {args.score}) = {summary['probability']:.6f}")
+    summary = describe(state, args.line, checkpoint)
+    print(f"line {args.line:g}")
+    print(f"over {100 * summary['over']:.1f}%")
+    print(f"under {100 * summary['under']:.1f}%")
+    print(f"push {100 * summary['push']:.1f}%")
     print(f"mean final total = {summary['mean_final']:.1f}")
     print(f"p10 = {summary['p10']}  p50 = {summary['p50']}  p90 = {summary['p90']}")
 
